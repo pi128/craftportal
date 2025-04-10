@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Run Python with Pyodide</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+</head>
+<body>
+  <h1>Run Python Script using Pyodide</h1>
+  <button onclick="runPython()">Run Script</button>
+  <pre id="output"></pre>
+
+  <script type="text/javascript">
+    let pyodide;
+
+    async function main() {
+      pyodide = await loadPyodide();
+    }
+
+    async function runPython() {
+      const response = await fetch('testy.py');
+      const code = await response.text();
+      try {
+        const output = await pyodide.runPythonAsync(code);
+        document.getElementById("output").textContent = output ?? "Script ran successfully!";
+      } catch (err) {
+        document.getElementById("output").textContent = err;
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
