@@ -143,9 +143,10 @@ def create_main_room():
     objects = []
     tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
     add_object(objects, 4, 2, tree_image)
-    
 
     return layout, objects
+
+
 
 def create_cave_room():
     layout = [["" for _ in range(map_width)] for _ in range(map_height)]
@@ -164,6 +165,7 @@ def create_cave_room():
         for x in range(map_width):
             if randint(1, 12) == 1:
                 layout[y][x] = "diamond"
+
 
     # Place some object for visual testing
     objects = []
@@ -191,11 +193,15 @@ maps = {
     }
 }
 
+caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
+add_object(maps["main"]["objects"], 10, 0, caveentrance_image)
+
 current_map = "main"
 tile_layout = maps[current_map]["layout"]
 objects = maps[current_map]["objects"]
 tile_img = maps[current_map]["tile"]
 visibility = maps[current_map].get("visibility", [[True]*map_width for _ in range(map_height)])
+
 
 # Draw map with custom tiles
 def draw_map():
@@ -216,12 +222,12 @@ def draw_map():
             else:
                 if tile_type in tile_images:
                     tile = tile_images[tile_type]
-                    if tile_type in ("ore", "iron", "gold", "coal", "diamond"):
+                    if tile_type in ("diamond", "iron", "gold", "coal"):
                         small_tile = pygame.transform.scale(tile, (48, 48))
                         screen.blit(small_tile, (draw_x + 8, draw_y + 8))
                     else:
                         screen.blit(tile, (draw_x, draw_y))
-
+ 
 # Player setup
 player_pos = pygame.Vector2(screen_width // 2, screen_height // 2)
 facing = "down"
@@ -245,6 +251,10 @@ def panic_escape(player_rect, player_pos, step=5):
             player_pos.x += dx
             player_pos.y += dy
             break
+
+# Cave entrance in main
+caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
+add_object(maps["main"]["objects"], 10, 0, caveentrance_image)
 
 # Main loop
 running = True
@@ -313,12 +323,6 @@ while running:
 
     player_rect.y = player_pos.y - half_height
 
-    if (
-        player_pos.y - half_height < 0 or
-        player_pos.y + half_height > screen_height or
-        will_collide(player_rect)
-    ):
-        player_pos.y = old_y
 
     # Animate
     if moved:
@@ -361,7 +365,22 @@ while running:
                                         visibility[ty][tx] = True
                     tile_layout[ty][tx] = "empty"
 
+    # Check for cave entrance teleport
+    if current_map == "main":
+        for obj in objects:
+            if obj["image"] == caveentrance_image and obj["rect"].colliderect(player_rect):
+                print("🌀 teleporting to cave!")
 
+                current_map = "cave"
+                tile_layout = maps["cave"]["layout"]
+                objects = maps["cave"]["objects"]
+                tile_img = maps["cave"]["tile"]
+                visibility = maps["cave"].get("visibility", [[True] * map_width for _ in range(map_height)])
+
+                # Set player spawn to center of cave
+                player_pos.x = map_x + tile_size * (map_width // 2)
+                player_pos.y = map_y + tile_size * (map_height // 2)
+                break
     # Draw
     screen.fill((0, 0, 0))
     draw_map()
