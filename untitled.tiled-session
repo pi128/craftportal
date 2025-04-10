@@ -1,0 +1,31 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "roguelikeChar_transparent.tsx",
+    "expandedProjectPaths": [
+        ".",
+        "venv"
+    ],
+    "fileStates": {
+        "BackFacing.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "roguelikeChar_transparent.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        }
+    },
+    "last.imagePath": "/Users/james/Downloads/kenney_roguelike-characters/Spritesheet",
+    "openFiles": [
+        "roguelikeChar_transparent.tsx"
+    ],
+    "project": "untitled.tiled-project",
+    "recentFiles": [
+        "roguelikeChar_transparent.tsx",
+        "BackFacing.tsx"
+    ],
+    "tileset.lastUsedFormat": "tsx"
+}
