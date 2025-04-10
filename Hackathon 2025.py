@@ -13,8 +13,8 @@ map_width = 20
 map_height = 11
 
 # Animation + Input delay config
-frame_delay = 150  # milliseconds
-map_switch_delay = 500  # milliseconds
+frame_delay = 150  # milli
+map_switch_delay = 500 
 map_switch_timer = 0
 
 # Precalculate map position
@@ -98,17 +98,21 @@ def create_lab_room():
 maps = {
     "main": {
         "layout": create_main_room(),
-        "objects": []
+        "objects": [],
+        "background": "green"
     },
     "lab": {
         "layout": create_lab_room(),
-        "objects": []
+        "objects": [],
+        "background": "darkblue"  
     }
 }
 
 current_map = "main"
 tile_layout = maps[current_map]["layout"]
 objects = maps[current_map]["objects"]
+background = maps[current_map]["background"]
+
 
 # Add a tree
 tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
@@ -219,6 +223,7 @@ while running:
         current_map = "lab" if current_map == "main" else "main"
         tile_layout = maps[current_map]["layout"]
         objects = maps[current_map]["objects"]
+        background = maps[current_map]["background"]
         map_switch_timer = 0
 
     player_rect = pygame.Rect(
@@ -245,7 +250,7 @@ while running:
         frame_index = 0
 
     # Draw
-    screen.fill("green")
+    screen.fill(background)
     draw_map()
     current_frame = animations[facing][frame_index]
     scaled_frame = pygame.transform.scale(current_frame, (current_frame.get_width() // 4, current_frame.get_height() // 4))
