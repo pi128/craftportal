@@ -211,7 +211,7 @@ def draw_map():
             draw_y = map_y + y * tile_size
 
             # Always draw base tile first
-            screen.blit(cave_tile_img, (draw_x, draw_y))
+            screen.blit(tile_img, (draw_x, draw_y))
 
             tile_type = tile_layout[y][x]
 
