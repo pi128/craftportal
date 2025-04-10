@@ -166,6 +166,8 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+            pygame.draw.rect(screen, (255, 
+                                      0, 0), pygame.Rect(100, 100, 200, 200))
 
     current_frame = animations[facing][frame_index]
     scaled_frame = pygame.transform.scale(current_frame, (current_frame.get_width() // 4, current_frame.get_height() // 4))
