@@ -61,8 +61,11 @@ cave_tile_img = pygame.transform.scale(
 
 tile_images = {
     "stone": pygame.transform.scale(pygame.image.load("Sprites/MineCraft/stoneblock.png").convert_alpha(), (tile_size, tile_size)),
-    "ore": pygame.transform.scale(pygame.image.load("Sprites/MineCraft/diamondblock.png").convert_alpha(), (tile_size, tile_size)),
-    "empty": pygame.Surface((tile_size, tile_size))  # No comma here
+    "diamond": pygame.transform.scale(pygame.image.load("Sprites/MineCraft/diamondblock.png").convert_alpha(), (tile_size, tile_size)),
+    "empty": cave_tile_img, 
+    "iron": pygame.transform.scale(pygame.image.load("Sprites/MineCraft/ironblock.png").convert_alpha(), (tile_size, tile_size)),
+    "gold": pygame.transform.scale(pygame.image.load("Sprites/MineCraft/goldblock.png").convert_alpha(), (tile_size, tile_size)),
+    "dirt": pygame.transform.scale(pygame.image.load("Sprites/MineCraft/dirtblock.png").convert_alpha(), (tile_size, tile_size)),
 }
 
 # Path-laying function
@@ -107,20 +110,28 @@ def generate_mining_map():
     layout = [["stone" for _ in range(map_width)] for _ in range(map_height)]
     visibility = [[False for _ in range(map_width)] for _ in range(map_height)]
 
-    # 3x3 dirt base area in the center
+    # 3x3 dirtpath base area in the center
     center_x = map_width // 2
     center_y = map_height // 2
     for y in range(center_y - 1, center_y + 2):
         for x in range(center_x - 1, center_x + 2):
-            layout[y][x] = "dirt"
+            layout[y][x] = "dirtpath"
             visibility[y][x] = True  # starting tiles are visible
 
     # Random ore generation outside the 3x3 base
     from random import randint
     for y in range(map_height):
         for x in range(map_width):
-            if layout[y][x] == "stone" and randint(1, 12) == 1:
-                layout[y][x] = "ore"
+            if layout[y][x] == "stone" and randint(1, 10) <= 2:  # ~20% chance for ore
+                ore_type = randint(1, 4)
+                if ore_type == 1:
+                    layout[y][x] = "diamond"
+                elif ore_type == 2:
+                    layout[y][x] = "iron"
+                elif ore_type == 3:
+                    layout[y][x] = "gold"
+                elif ore_type == 4:
+                    layout[y][x] = "coal"
 
     return layout, visibility
 # Map creation
@@ -132,6 +143,7 @@ def create_main_room():
     objects = []
     tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
     add_object(objects, 4, 2, tree_image)
+    
 
     return layout, objects
 
@@ -151,7 +163,7 @@ def create_cave_room():
     for y in range(map_height // 2):
         for x in range(map_width):
             if randint(1, 12) == 1:
-                layout[y][x] = "ore"
+                layout[y][x] = "diamond"
 
     # Place some object for visual testing
     objects = []
@@ -189,12 +201,26 @@ visibility = maps[current_map].get("visibility", [[True]*map_width for _ in rang
 def draw_map():
     for y in range(map_height):
         for x in range(map_width):
+            draw_x = map_x + x * tile_size
+            draw_y = map_y + y * tile_size
+
+            # Always draw base tile first
+            screen.blit(cave_tile_img, (draw_x, draw_y))
+
             tile_type = tile_layout[y][x]
-            if tile_type in tile_images:
-                tile = tile_images[tile_type]
+
+            # Handle visibility in the cave map
+            if current_map == "cave" and not visibility[y][x]:
+                tile = tile_images["stone"]  # hide real tile
+                screen.blit(tile, (draw_x, draw_y))
             else:
-                tile = tile_img
-            screen.blit(tile, (map_x + x * tile_size, map_y + y * tile_size))
+                if tile_type in tile_images:
+                    tile = tile_images[tile_type]
+                    if tile_type in ("ore", "iron", "gold", "coal", "diamond"):
+                        small_tile = pygame.transform.scale(tile, (48, 48))
+                        screen.blit(small_tile, (draw_x + 8, draw_y + 8))
+                    else:
+                        screen.blit(tile, (draw_x, draw_y))
 
 # Player setup
 player_pos = pygame.Vector2(screen_width // 2, screen_height // 2)
@@ -318,10 +344,22 @@ while running:
         ty = int((player_pos.y - map_y) // tile_size) + dy
 
         if 0 <= tx < map_width and 0 <= ty < map_height:
-            if tile_layout[ty][tx] in ("stone", "ore"):
-                tile_layout[ty][tx] = "empty"
+            if tile_layout[ty][tx] in ("stone", "ore", "diamond", "iron", "gold", "coal"):
                 if current_map == "cave":
+                    was_ore = tile_layout[ty][tx] in ("diamond", "iron", "gold", "coal")
                     visibility[ty][tx] = True
+
+                    # Auto-reveal if next to visible ores
+                    if was_ore:
+                        for dy in [-1, 0, 1]:
+                            for dx in [-1, 0, 1]:
+                                if abs(dx) + abs(dy) != 1:
+                                    continue
+                                nx, ny = tx + dx, ty + dy
+                                if 0 <= nx < map_width and 0 <= ny < map_height:
+                                    if visibility[ny][nx] and tile_layout[ty][tx] in ("diamond", "iron", "gold", "coal"):
+                                        visibility[ty][tx] = True
+                    tile_layout[ty][tx] = "empty"
 
 
     # Draw
