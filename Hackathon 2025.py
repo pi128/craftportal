@@ -12,6 +12,11 @@ tile_size = 64
 map_width = 20
 map_height = 11
 
+# Animation + Input delay config
+frame_delay = 150  # milliseconds
+map_switch_delay = 500  # milliseconds
+map_switch_timer = 0
+
 # Precalculate map position
 map_x = (screen_width - tile_size * map_width) // 2
 map_y = (screen_height - tile_size * map_height) // 2
@@ -55,8 +60,7 @@ def lay_path(layout, start_x, start_y, direction, length, thickness=1):
             if 0 <= x < map_width and 0 <= y < map_height:
                 layout[y][x] = "path"
 
-    # Store objects in a list of dictionaries
-
+# Store objects
 objects = []
 
 def add_object(obj_list, tile_x, tile_y, image):
@@ -74,23 +78,41 @@ def add_object(obj_list, tile_x, tile_y, image):
     }
     obj_list.append(obj)
 
-
-    barrel = pygame.image.load("Sprites/Objects/Other/barrel-medium.png").convert_alpha()
-
 def draw_objects(screen, objects, tile_size, map_x, map_y):
     for obj in objects:
         img = pygame.transform.scale(obj["image"], (tile_size, tile_size))
         screen.blit(img, (map_x + obj["x"] * tile_size, map_y + obj["y"] * tile_size))
 
-    tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
-    
-    add_object(objects, 4, 2, tree_image)
+# Map creation
+def create_main_room():
+    layout = [["" for _ in range(map_width)] for _ in range(map_height)]
+    lay_path(layout, 5, 5, "horizontal", 10)
+    lay_path(layout, 10, 2, "vertical", 6)
+    return layout
 
-# Lay some paths
-                
-center_x, center_y = map_width // 2, map_height // 2
-lay_path(tile_layout, center_x - 10, center_y, "horizontal", length=20, thickness=1)
-lay_path(tile_layout, center_x, center_y - 5, "vertical", length=11, thickness=1)
+def create_lab_room():
+    layout = [["" for _ in range(map_width)] for _ in range(map_height)]
+    lay_path(layout, 3, 5, "horizontal", 14)
+    return layout
+
+maps = {
+    "main": {
+        "layout": create_main_room(),
+        "objects": []
+    },
+    "lab": {
+        "layout": create_lab_room(),
+        "objects": []
+    }
+}
+
+current_map = "main"
+tile_layout = maps[current_map]["layout"]
+objects = maps[current_map]["objects"]
+
+# Add a tree
+tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
+add_object(objects, 4, 2, tree_image)
 
 # Draw map
 def draw_map():
@@ -103,10 +125,7 @@ def draw_map():
 player_pos = pygame.Vector2(screen_width // 2, screen_height // 2)
 facing = "down"
 frame_index, frame_timer = 0, 0
-frame_delay = 120
 speed = 5
-
-
 
 def will_collide(new_rect):
     for obj in objects:
@@ -116,8 +135,8 @@ def will_collide(new_rect):
 
 def panic_escape(player_rect, player_pos, step=5):
     directions = [
-        (0, -step), (0, step), (-step, 0), (step, 0),  # up, down, left, right
-        (-step, -step), (-step, step), (step, -step), (step, step)  # diagonals
+        (0, -step), (0, step), (-step, 0), (step, 0),
+        (-step, -step), (-step, step), (step, -step), (step, step)
     ]
     for dx, dy in directions:
         test_rect = player_rect.move(dx, dy)
@@ -126,45 +145,31 @@ def panic_escape(player_rect, player_pos, step=5):
             player_pos.y += dy
             break
 
+# Tree in main
+tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
+add_object(maps["main"]["objects"], 4, 2, tree_image)
+
+# Barrel in lab
+barrel_image = pygame.image.load("Sprites/Objects/Other/barrel-medium.png").convert_alpha()
+add_object(maps["lab"]["objects"], 10, 5, barrel_image)
+
 # Main loop
 running = True
 while running:
-    dt = clock.tick(60)
+    mapTime = clock.tick(60)
+    map_switch_timer += mapTime
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-
-    # Calculate scaled sprite and half size for boundary cutting
     current_frame = animations[facing][frame_index]
     scaled_frame = pygame.transform.scale(current_frame, (current_frame.get_width() // 4, current_frame.get_height() // 4))
     half_width = scaled_frame.get_width() // 2
     half_height = scaled_frame.get_height() // 2
 
-
-    # Movement input
     keys = pygame.key.get_pressed()
     moved = False
-
-    moved = False
-
-   # Movement input
-    keys = pygame.key.get_pressed()
-    moved = False
-
-        # 1. Get current frame
-    current_frame = animations[facing][frame_index]
-    scaled_frame = pygame.transform.scale(current_frame, (current_frame.get_width() // 4, current_frame.get_height() // 4))
-    half_width = scaled_frame.get_width() // 2
-    half_height = scaled_frame.get_height() // 2
-
-
-    # 1. Calculate sprite and rect FIRST
-    current_frame = animations[facing][frame_index]
-    scaled_frame = pygame.transform.scale(current_frame, (current_frame.get_width() // 4, current_frame.get_height() // 4))
-    half_width = scaled_frame.get_width() // 2
-    half_height = scaled_frame.get_height() // 2
 
     player_rect = pygame.Rect(
         player_pos.x - half_width,
@@ -173,15 +178,7 @@ while running:
         scaled_frame.get_height()
     )
 
-    
- 
-
-    # Movement flags
-    moved = False
-
-        ## --- X-axis movement ---
     old_x = player_pos.x
-
     if keys[pygame.K_a] or keys[pygame.K_LEFT]:
         player_pos.x -= speed
         facing = "left"
@@ -191,7 +188,6 @@ while running:
         facing = "right"
         moved = True
 
-    # Recalculate rect
     player_rect = pygame.Rect(
         player_pos.x - half_width,
         player_pos.y - half_height,
@@ -199,7 +195,6 @@ while running:
         scaled_frame.get_height()
     )
 
-        # Roll back X if off screen or collides
     if (
         player_pos.x - half_width < 0 or
         player_pos.x + half_width > screen_width or
@@ -207,10 +202,7 @@ while running:
     ):
         player_pos.x = old_x
 
-
-    # --- Y-axis movement ---
     old_y = player_pos.y
-
     if keys[pygame.K_w] or keys[pygame.K_UP]:
         player_pos.y -= speed
         facing = "up"
@@ -219,10 +211,16 @@ while running:
         player_pos.y += speed
         facing = "down"
         moved = True
-    if keys[pygame.K_p]:  # PANIC ESCAPE
+
+    if keys[pygame.K_p]:
         panic_escape(player_rect, player_pos)
 
-    # Recalculate rect
+    if keys[pygame.K_m] and map_switch_timer >= map_switch_delay:
+        current_map = "lab" if current_map == "main" else "main"
+        tile_layout = maps[current_map]["layout"]
+        objects = maps[current_map]["objects"]
+        map_switch_timer = 0
+
     player_rect = pygame.Rect(
         player_pos.x - half_width,
         player_pos.y - half_height,
@@ -230,32 +228,31 @@ while running:
         scaled_frame.get_height()
     )
 
-    # Roll back Y if off screen or collides
     if (
         player_pos.y - half_height < 0 or
         player_pos.y + half_height > screen_height or
         will_collide(player_rect)
     ):
         player_pos.y = old_y
-                # Animation
-        # Update animation frame
-       # right after all movement input blocks
+
+    # Animate
     if moved:
-        frame_timer += dt
+        frame_timer += mapTime
         if frame_timer >= frame_delay:
             frame_timer = 0
             frame_index = (frame_index + 1) % len(animations[facing])
     else:
         frame_index = 0
 
-    # Render
+    # Draw
     screen.fill("green")
     draw_map()
     current_frame = animations[facing][frame_index]
     scaled_frame = pygame.transform.scale(current_frame, (current_frame.get_width() // 4, current_frame.get_height() // 4))
     screen.blit(scaled_frame, scaled_frame.get_rect(center=player_pos))
     draw_objects(screen, objects, tile_size, map_x, map_y)
-    if (keys[pygame.K_q]):
+
+    if keys[pygame.K_q]:
         break
 
     pygame.display.flip()
