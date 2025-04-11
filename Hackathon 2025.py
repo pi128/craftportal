@@ -1,7 +1,32 @@
 import pygame, sys, os
 from pathlib import Path
+from pygame.locals import *
 
 pygame.init()
+
+# Pause Menu
+# pause = False
+
+# Start Menu
+resolution = (1280,720)
+img = pygame.image.load('/Users/sam/Desktop/jpeg_folder/portalcraft.jpg')
+img_rect = img.get_rect(topleft=(0,0))
+img_scaled = pygame.transform.scale(img, (1280, 720))
+play = False
+play_screen = pygame.display.set_mode(resolution)
+
+start = pygame.image.load('/Users/sam/Desktop/jpeg_folder/start.jpg')
+start_scaled = pygame.transform.scale(start, (300, 100))
+start_rect = start_scaled.get_rect(center=(resolution[0]//2, resolution[1]//2))
+
+over_start = pygame.image.load('/Users/sam/Desktop/jpeg_folder/over_start.png')
+over_start_scaled = pygame.transform.scale(over_start, (300, 100))
+over_start_rect = start_scaled.get_rect(center=(resolution[0]//2, resolution[1]//2))
+
+# Flash interval for buttons
+flash = 30
+frame = 0
+highlight = True
 
 # Setup
 screen_width, screen_height = 1280, 720
@@ -210,14 +235,14 @@ def draw_map():
             draw_x = map_x + x * tile_size
             draw_y = map_y + y * tile_size
 
-            # Always draw base tile first
-            screen.blit(tile_img, (draw_x, draw_y))
+            # Always draw the base tile (like cave tile for fallback)
+            screen.blit(tile_img, (draw_x, draw_y))  # uses grass or cave depending on map
 
             tile_type = tile_layout[y][x]
 
-            # Handle visibility in the cave map
+            # Handle cave visibility logic
             if current_map == "cave" and not visibility[y][x]:
-                tile = tile_images["stone"]  # hide real tile
+                tile = tile_images["stone"]
                 screen.blit(tile, (draw_x, draw_y))
             else:
                 if tile_type in tile_images:
@@ -227,7 +252,7 @@ def draw_map():
                         screen.blit(small_tile, (draw_x + 8, draw_y + 8))
                     else:
                         screen.blit(tile, (draw_x, draw_y))
- 
+                        
 # Player setup
 player_pos = pygame.Vector2(screen_width // 2, screen_height // 2)
 facing = "down"
@@ -255,6 +280,32 @@ def panic_escape(player_rect, player_pos, step=5):
 # Cave entrance in main
 caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
 add_object(maps["main"]["objects"], 10, 0, caveentrance_image)
+
+
+# first is there so that when you click main menu in
+# the pause menu you can go back to the original loop
+first = True
+while first:
+    keys = pygame.key.get_pressed()
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            sys.exit(0)
+
+        if event.type == MOUSEBUTTONDOWN:
+            if start_rect.collidepoint(event.pos) or over_start_rect.collidepoint(event.pos):
+                first = False
+                running = True
+
+    play_screen.blit(img_scaled, (0, 0))
+    play_screen.blit(start_scaled, start_rect.topleft)
+    frame += 1
+    if frame >= flash:
+        highlight = not highlight
+        frame = 0
+    if highlight:
+        play_screen.blit(over_start_scaled, over_start_rect.topleft)
+    pygame.display.flip()
+    clock.tick(60)
 
 # Main loop
 running = True
@@ -334,42 +385,45 @@ while running:
         frame_index = 0
 
     if keys[pygame.K_e]:
+
         dx, dy = 0, 0
-        if facing == "up":
-            dy = -1
-        elif facing == "down":
-            dy = 1
-        elif facing == "left":
-            dx = -1
-        elif facing == "right":
-            dx = 1
+        if facing == "up": dy = -1
+        elif facing == "down": dy = 1
+        elif facing == "left": dx = -1
+        elif facing == "right": dx = 1
 
         tx = int((player_pos.x - map_x) // tile_size) + dx
         ty = int((player_pos.y - map_y) // tile_size) + dy
 
         if 0 <= tx < map_width and 0 <= ty < map_height:
-            if tile_layout[ty][tx] in ("stone", "ore", "diamond", "iron", "gold", "coal"):
-                if current_map == "cave":
-                    was_ore = tile_layout[ty][tx] in ("diamond", "iron", "gold", "coal")
+            if current_map == "cave":
+                target_tile = tile_layout[ty][tx]
+                if target_tile in ("stone", "diamond", "iron", "gold", "coal"):
+                    was_ore = target_tile in ("diamond", "iron", "gold", "coal")
+                    
+                    # Reveal the tile
                     visibility[ty][tx] = True
-
-                    # Auto-reveal if next to visible ores
-                    if was_ore:
-                        for dy in [-1, 0, 1]:
-                            for dx in [-1, 0, 1]:
-                                if abs(dx) + abs(dy) != 1:
-                                    continue
-                                nx, ny = tx + dx, ty + dy
-                                if 0 <= nx < map_width and 0 <= ny < map_height:
-                                    if visibility[ny][nx] and tile_layout[ty][tx] in ("diamond", "iron", "gold", "coal"):
-                                        visibility[ty][tx] = True
                     tile_layout[ty][tx] = "empty"
+
+                    # Auto-reveal ores adjacent to this one
+                    if was_ore:
+                        for dy_ in [-1, 0, 1]:
+                            for dx_ in [-1, 0, 1]:
+                                if abs(dx_) + abs(dy_) != 1:
+                                    continue  # skip diagonals
+                                nx, ny = tx + dx_, ty + dy_
+                                if (
+                                    0 <= nx < map_width and
+                                    0 <= ny < map_height and
+                                    tile_layout[ny][nx] in ("diamond", "iron", "gold", "coal")
+                                ):
+                                    visibility[ny][nx] = True
+
 
     # Check for cave entrance teleport
     if current_map == "main":
         for obj in objects:
             if obj["image"] == caveentrance_image and obj["rect"].colliderect(player_rect):
-                print("🌀 teleporting to cave!")
 
                 current_map = "cave"
                 tile_layout = maps["cave"]["layout"]
