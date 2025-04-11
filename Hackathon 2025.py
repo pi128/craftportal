@@ -9,17 +9,17 @@ pygame.init()
 
 # Start Menu
 resolution = (1280,720)
-img = pygame.image.load('/Users/sam/Desktop/jpeg_folder/portalcraft.jpg')
+img = pygame.image.load('Sprites/MineCraft/portalcraft.png')
 img_rect = img.get_rect(topleft=(0,0))
 img_scaled = pygame.transform.scale(img, (1280, 720))
 play = False
 play_screen = pygame.display.set_mode(resolution)
 
-start = pygame.image.load('/Users/sam/Desktop/jpeg_folder/start.jpg')
+start = pygame.image.load('Sprites/MineCraft/start.png')
 start_scaled = pygame.transform.scale(start, (300, 100))
 start_rect = start_scaled.get_rect(center=(resolution[0]//2, resolution[1]//2))
 
-over_start = pygame.image.load('/Users/sam/Desktop/jpeg_folder/over_start.png')
+over_start = pygame.image.load('Sprites/MineCraft/over_start.png')
 over_start_scaled = pygame.transform.scale(over_start, (300, 100))
 over_start_rect = start_scaled.get_rect(center=(resolution[0]//2, resolution[1]//2))
 
