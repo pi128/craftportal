@@ -41,9 +41,22 @@ map_height = 11
 frame_delay = 150  # milli
 map_switch_delay = 500 
 map_switch_timer = 0
+
 mine_delay = 300 
 last_mine_time = 0
+mining = False
+mining_timer = 0
+mining_index = 0
+mining_duration = 1000  # in milliseconds
 
+
+# Later:
+mining_overlays = [
+    pygame.image.load(f"Sprites/MineCraft/MiningNum{i}.png").convert_alpha()
+    for i in range(1, 11)
+]
+
+mining_delay = mining_duration // len(mining_overlays)  
 # Precalculate map position
 map_x = (screen_width - tile_size * map_width) // 2
 map_y = (screen_height - tile_size * map_height) // 2
@@ -60,6 +73,11 @@ tile_images = {
         (tile_size, tile_size)
     ),
 }
+
+mining_overlays = [
+    pygame.image.load(f"Sprites/MineCraft/MiningNum{i}.png").convert_alpha()
+    for i in range(1, 11)
+]
 
 # Character animations
 def load_animation_list(file_list):
@@ -315,6 +333,10 @@ while running:
     mapTime = clock.tick(60)
     map_switch_timer += mapTime
 
+    if mining:
+        mining_timer += mapTime
+        mining_index = mining_timer // mining_delay
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -423,7 +445,7 @@ while running:
                                     tile_layout[ny][nx] in ("diamond", "iron", "gold", "coal")
                                 ):
                                     visibility[ny][nx] = True
-                                    
+
 
     # Check for cave entrance teleport
     if current_map == "main":
@@ -450,5 +472,10 @@ while running:
 
     if keys[pygame.K_q]:
         break
+    # Draw mining overlay if active
+    if mining:
+        tx, ty = mining_target
+        overlay = mining_overlays[min(mining_index, len(mining_overlays) - 1)]
+        screen.blit(overlay, (map_x + tx * tile_size, map_y + ty * tile_size))
 
     pygame.display.flip()
