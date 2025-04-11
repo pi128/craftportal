@@ -136,7 +136,7 @@ def generate_mining_map():
     return layout, visibility
 # Map creation
 def create_main_room():
-    layout = [["" for _ in range(map_width)] for _ in range(map_height)]
+    layout = [["grass" for _ in range(map_width)] for _ in range(map_height)]
     lay_path(layout, 5, 5, "horizontal", 10, tile_type="dirtpath")
     lay_path(layout, 10, 2, "vertical", 6, tile_type="dirtpath")
     
