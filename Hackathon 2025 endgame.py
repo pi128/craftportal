@@ -42,23 +42,12 @@ frame_delay = 150  # milli
 map_switch_delay = 500 
 map_switch_timer = 0
 
-cave_exit_cooldown = 1000  # in milliseconds (1 second)
-last_cave_exit_time = 0
-
 mine_delay = 300 
 last_mine_time = 0
 mining = False
 mining_timer = 0
 mining_index = 0
 
-craft_message = ""
-craft_message_timer = 0
-CRAFT_MESSAGE_DURATION = 2000  # milliseconds
-
-has_portal_gun = False
-portal_gun_message = ""
-portal_gun_message_timer = 0
-PORTAL_MESSAGE_DURATION = 2000  # 2 seconds
 
 can_craft = True
 
@@ -76,10 +65,6 @@ ore_counts = {
     "stone": 0,
     "wood": 0
 }
-
-has_portal_gun = False
-portal_gun_message = ""
-portal_gun_timer = 0
 
 # Track mined overlay state
 persistent_overlays = {}  # {(tx, ty): overlay_image}
@@ -111,6 +96,8 @@ mining_overlays = [
     pygame.image.load(f"Sprites/MineCraft/MiningNum{i}.png").convert_alpha()
     for i in range(1, 11)
 ]
+
+caveexit_image = pygame.image.load("Sprites/Tiles/Cave/caveExit.png").convert_alpha()
 
 # Character animations
 def load_animation_list(file_list):
@@ -196,35 +183,42 @@ def generate_mining_map():
     for y in range(center_y - 1, center_y + 2):
         for x in range(center_x - 1, center_x + 2):
             layout[y][x] = "dirtpath"
-            visibility[y][x] = True
+            visibility[y][x] = True  # starting tiles are visible
 
-    from random import shuffle, randint
 
-    # Guaranteed ore placements
-    guaranteed_ores = ["diamond"] * 5 + ["iron"] * 10 + ["gold"] * 8
-    shuffle(guaranteed_ores)
+    # Random ore generation outside the 3x3 base
+        
+    from random import randint, shuffle
+
+    # List of ore types with a minimum of 3 each
+    required_ores = ["diamond"] * 3 + ["iron"] * 3 + ["gold"] * 3
+    shuffle(required_ores)  # Randomize placement order
 
     # Find all stone positions
     stone_positions = [(x, y) for y in range(map_height) for x in range(map_width) if layout[y][x] == "stone"]
     shuffle(stone_positions)
 
-    # Place guaranteed ores
-    for ore in guaranteed_ores:
+    # Place the guaranteed ores first
+    for ore in required_ores:
         if stone_positions:
             x, y = stone_positions.pop()
             layout[y][x] = ore
 
-    # Add more iron/gold randomly (about 20% of remaining stone tiles)
+    # Then fill in more ores randomly (~20% chance)
     for x, y in stone_positions:
-        roll = randint(1, 10)
-        if roll <= 3:  # 30% chance to add more ore
-            layout[y][x] = "iron" if roll <= 2 else "gold"
+        if randint(1, 10) <= 2:
+            ore_type = randint(1, 3)
+            if ore_type == 1:
+                layout[y][x] = "diamond"
+            elif ore_type == 2:
+                layout[y][x] = "iron"
+            elif ore_type == 3:
+                layout[y][x] = "gold"
+ 
 
     return layout, visibility
 #Weirdly needed to be on its own
 tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
-crafting_table_image = pygame.image.load("Sprites/MineCraft/craftingTable1.png").convert_alpha()
-caveexit_image = pygame.image.load("Sprites/Tiles/Cave/caveExit.png").convert_alpha()
 
 # Map creation
 def create_main_room():
@@ -250,7 +244,7 @@ def create_main_room():
    
     add_object(objects, 4, 2, tree_image)
 
-  
+    crafting_table_image = pygame.image.load("Sprites\MineCraft\goldblock.png").convert_alpha()
     add_object(objects, 8, 5, crafting_table_image)
 
     return layout, objects
@@ -280,8 +274,6 @@ def create_cave_room():
     objects = []
     barrel_image = pygame.image.load("Sprites/Objects/Other/barrel-medium.png").convert_alpha()
     add_object(objects, 10, map_height - 3, barrel_image)
-    
-    add_object(cave_objects, map_width // 2, (map_height // 2) - 4, caveexit_image)
 
     return layout, objects
 
@@ -307,12 +299,6 @@ maps = {
 caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
 add_object(maps["main"]["objects"], 10, 0, caveentrance_image)
 
-gate_image = pygame.image.load("Sprites/Tiles/Dirt Path/dirtpath-4.png").convert_alpha()
-add_object(maps["main"]["objects"], 19, 5, gate_image)
-
-
-
-
 current_map = "main"
 tile_layout = maps[current_map]["layout"]
 objects = maps[current_map]["objects"]
@@ -332,14 +318,11 @@ def draw_map():
 
             tile_type = tile_layout[y][x]
 
-            if not obj in maps["cave"]["objects"]:
-                odd_object(maps["cave"]["objects"], map_width/2, (map_height/2)-5, caveexit_image)
-                tile = tile_images["stone"]
-                screen.blit(tile, (draw_x, draw_y))
-
             # Handle cave visibility logic
             if current_map == "cave" and not visibility[y][x]:
                 
+                if not obj in maps["cave"]["objects"]:
+                    add_object(maps["cave"]["objects"], map_width/2, (map_height/2)-5, caveexit_image)
                 tile = tile_images["stone"]
                 screen.blit(tile, (draw_x, draw_y))
             else:
@@ -364,10 +347,9 @@ speed = 5
 player_tool_level = 1  # 1: Wood, 2: Stone, 3: Iron, 4: Diamond
 
 ore_hardness = {
-    "stone": 2,    #  New! stone requires tool level 2
-    "iron": 3,
-    "gold": 3,
-    "diamond": 4
+    "iron": 2,
+    "gold": 2,
+    "diamond": 3
 }
 
 
@@ -376,27 +358,6 @@ def will_collide(new_rect):
     for obj in objects:
         if new_rect.colliderect(obj["rect"]):
             return True
-    current_time = pygame.time.get_ticks()
-
-    for obj in objects:
-        if (
-            current_map == "cave" and 
-            obj["image"] == caveexit_image and 
-            obj["rect"].colliderect(player_rect) and 
-            current_time - last_cave_exit_time >= cave_exit_cooldown
-        ):
-            current_map = "main"
-            tile_layout = maps["main"]["layout"]
-            objects = maps["main"]["objects"]
-            tile_img = maps["main"]["tile"]
-            visibility = maps["main"].get("visibility", [[True] * map_width for _ in range(map_height)])
-
-            # Set player near cave entrance
-            player_pos.x = map_x + tile_size * 10
-            player_pos.y = map_y + tile_size * 1
-
-            last_cave_exit_time = current_time  # Update the timer
-            break
 
     # Tile collisions (e.g., stone)
     player_tile_y = int(player_pos.y // tile_size)
@@ -411,38 +372,14 @@ def will_collide(new_rect):
                 if tile_layout[ny][nx] == "crafting_table":
                     can_craft = True
                     break
-    if can_craft:
-        if player_tool_level == 1 and ore_counts["wood"] >= 3:
-            ore_counts["wood"] -= 3
-            player_tool_level = 2
-            craft_message = "Crafted Stone Tool!"
-            craft_message_timer = pygame.time.get_ticks()
+        if can_craft:
+            break
 
-        elif player_tool_level == 2 and ore_counts["stone"] >= 5:
-            ore_counts["stone"] -= 5
-            player_tool_level = 3
-            craft_message = "Crafted Iron Tool!"
-            craft_message_timer = pygame.time.get_ticks()
-
-        elif player_tool_level == 3 and ore_counts["iron"] >= 5:
-            ore_counts["iron"] -= 5
-            player_tool_level = 4
-            craft_message = "Crafted Gold Tool!"
-            craft_message_timer = pygame.time.get_ticks()
-
-        elif player_tool_level == 4 and ore_counts["gold"] >= 5:
-            ore_counts["gold"] -= 5
-            player_tool_level = 5
-            craft_message = "Crafted Diamond Tool!"
-            craft_message_timer = pygame.time.get_ticks()
-
-        else:
-            craft_message = "Not enough materials"
-            craft_message_timer = pygame.time.get_ticks()
-
-        can_craft = False  # prevent holding space to spam craft
-    global has_portal_gun
-
+    if can_craft and can_craft and ore_counts["wood"] >= 3:
+        player_tool_level += 1
+        ore_counts["wood"] -= 3
+        print(f"Crafted! Tool upgraded to level {player_tool_level}")
+        can_craft = False
 
 def panic_escape(player_rect, player_pos, step=5):
     directions = [
@@ -460,10 +397,6 @@ def panic_escape(player_rect, player_pos, step=5):
 caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
 add_object(maps["main"]["objects"], 10, 0, caveentrance_image)
 
-# Gate in main
-gate_image = pygame.image.load("Sprites/Tiles/Dirt Path/dirtpath-4.png").convert_alpha()
-add_object(maps["main"]["objects"], 19, 5, gate_image)
-
 
 # first is there so that when you click main menu in
 # the pause menu you can go back to the original loop
@@ -479,7 +412,6 @@ while first:
                 first = False
                 running = True
 
-
     play_screen.blit(img_scaled, (0, 0))
     play_screen.blit(start_scaled, start_rect.topleft)
     frame += 1
@@ -493,10 +425,8 @@ while first:
 
 # Main loop
 running = True
-can_move = True
 while running:
     mapTime = clock.tick(60)
-    can_move = not mining
     map_switch_timer += mapTime
 
    
@@ -526,26 +456,16 @@ while running:
 
     old_x = player_pos.x
 
-    if can_move:
-        # Horizontal movement
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            player_pos.x -= speed
-            facing = "left"
-            moved = True
-        elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            player_pos.x += speed
-            facing = "right"
-            moved = True
+# Handle horizontal input
+    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+        player_pos.x -= speed
+        facing = "left"
+        moved = True
+    elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+        player_pos.x += speed
+        facing = "right"
+        moved = True
 
-        # Vertical movement
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            player_pos.y -= speed
-            facing = "up"
-            moved = True
-        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            player_pos.y += speed
-            facing = "down"
-            moved = True
     # Update player_rect
     player_rect.x = player_pos.x - half_width
 
@@ -565,8 +485,22 @@ while running:
         player_moved = False
         player_pos.x -= speed
 
- 
+    if mining:
+            if keys[pygame.K_w] or keys[pygame.K_a] or keys[pygame.K_s] or keys[pygame.K_d] or \
+            keys[pygame.K_UP] or keys[pygame.K_LEFT] or keys[pygame.K_DOWN] or keys[pygame.K_RIGHT]:
+                mining = False
+                mining_target = None
+                mining_timer = 0
+                mining_index = 0
     old_y = player_pos.y
+    if keys[pygame.K_w] or keys[pygame.K_UP]:
+        player_pos.y -= speed
+        facing = "up"
+        moved = True
+    elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+        player_pos.y += speed
+        facing = "down"
+        moved = True
 
     player_rect.y = player_pos.y - half_height
     if (
@@ -595,13 +529,6 @@ while running:
 
     player_rect.y = player_pos.y - half_height
 
-    if (
-        player_pos.y - half_height < 0 or
-        player_pos.y + half_height > screen_height or
-        will_collide(player_rect)
-    ):
-        player_pos.y = old_y
-
 
     # Animate
     if moved:
@@ -629,41 +556,21 @@ while running:
                 objects.remove(obj)
                 ore_counts["wood"] += 1
                 break
-
+    # ---- Crafting Table Check ----
     if keys[pygame.K_SPACE] and current_map == "main" and can_craft:
-        for obj in objects:
-            if obj["image"] == crafting_table_image:
-                dx = abs(obj["x"] - int((player_pos.x - map_x) // tile_size))
-                dy = abs(obj["y"] - int((player_pos.y - map_y) // tile_size))
-                if dx <= 1 and dy <= 1:
+        player_tile_x = int(player_pos.x) // tile_size
+        player_tile_y = int(player_pos.y) // tile_size
 
-                    if player_tool_level == 1 and ore_counts["wood"] >= 3:
-                        ore_counts["wood"] -= 3
-                        player_tool_level += 1
-                        print("Crafted Stone Tool! Now Level 2")
+        if tile_layout[player_tile_y][player_tile_x] == "crafting_table":
+            if ore_counts["wood"] >= 3:
+                ore_counts["wood"] -= 3
+                player_tool_level += 1
+                print(f"Tool upgraded! New level: {player_tool_level}")
+            else:
+                print("Not enough wood to upgrade tool.")
+        can_craft = False  # prevent repeat crafting
 
-                    elif player_tool_level == 2 and ore_counts["stone"] >= 3:
-                        ore_counts["stone"] -= 3
-                        player_tool_level += 1
-                        print("Crafted Iron Tool! Now Level 3")
-
-                    elif player_tool_level == 3 and ore_counts["iron"] >= 3:
-                        ore_counts["iron"] -= 3
-                        player_tool_level += 1
-                        print("Crafted Gold Tool! Now Level 4")
-
-                    elif player_tool_level == 4 and ore_counts["gold"] >= 3:
-                        ore_counts["gold"] -= 3
-                        player_tool_level += 1
-                        print("Crafted Diamond Tool! Now Level 5")
-
-                    else:
-                        print("Not enough materials to upgrade.")
-
-                    can_craft = False
-                    break
-              
-        # Reset crafting when SPACE is released
+    # Reset crafting when SPACE is released
     if not keys[pygame.K_SPACE]:
         can_craft = True        
     if keys[pygame.K_SPACE] and current_time - last_mine_time >= mine_delay and not mining:
@@ -682,20 +589,6 @@ while running:
         if 0 <= tx < map_width and 0 <= ty < map_height:
             if current_map == "cave":
   
-                for obj in objects:
-                    if obj["image"] == caveexit_image and obj["rect"].colliderect(player_rect):
-
-                        current_map = "main"
-                        tile_layout = maps["main"]["layout"]
-                        objects = maps["main"]["objects"]
-                        tile_img = maps["main"]["tile"]
-                        visibility = maps["main"].get("visibility", [[True] * map_width for _ in range(map_height)])
-
-                        # Set player spawn to top of screen
-                        player_pos.x = map_x + tile_size * (map_width // 2)
-                        player_pos.y = map_y + tile_size * (map_height-7)
-                        print(current_map)
-                        break
                 target_tile = tile_layout[ty][tx]
                 mined_ore_type = target_tile
                 valid_mineables = ("diamond", "iron", "gold", "stone")
@@ -705,12 +598,9 @@ while running:
                     # Check tool level
                     #global ore_hardness
 
-                   if target_tile in ore_hardness:
-                    required_level = ore_hardness[target_tile]
-                    if player_tool_level < required_level:
-                        print(f"Your tool is too weak to mine {target_tile}!")
-                        craft_message = f"Tool too weak for {target_tile.title()}"
-                        craft_message_timer = pygame.time.get_ticks()
+                    if target_tile in ore_hardness and player_tool_level < ore_hardness[target_tile]:
+                        #print(f"Your tool is too weak to mine {target_tile}!")
+                        # Optional: play error sound or show visual feedback
                         continue
 
                     mining_target = (tx, ty)
@@ -742,7 +632,7 @@ while running:
                                 visibility[ny][nx] = True
 
 
-    # Check for cave entrance teleport
+    # Check for cave entrance/exit teleport
     if current_map == "main":
         for obj in objects:
             if obj["image"] == caveentrance_image and obj["rect"].colliderect(player_rect):
@@ -756,22 +646,24 @@ while running:
                 # Set player spawn to center of cave
                 player_pos.x = map_x + tile_size * (map_width // 2)
                 player_pos.y = map_y + tile_size * (map_height // 2)
+
+                print(current_map)
                 break
 
-    # Check for Gate teleport
-    if current_map == "main":
+    if current_map == "cave":
         for obj in objects:
-            if obj["image"] == gate_image and obj["rect"].colliderect(player_rect):
+            if obj["image"] == caveexit_image and obj["rect"].colliderect(player_rect):
 
-                current_map = "cave"
-                tile_layout = maps["cave"]["layout"]
-                objects = maps["cave"]["objects"]
-                tile_img = maps["cave"]["tile"]
-                visibility = maps["cave"].get("visibility", [[True] * map_width for _ in range(map_height)])
+                current_map = "main"
+                tile_layout = maps["main"]["layout"]
+                objects = maps["main"]["objects"]
+                tile_img = maps["main"]["tile"]
+                visibility = maps["main"].get("visibility", [[True] * map_width for _ in range(map_height)])
 
-                # Set player spawn to center of cave
+                # Set player spawn to top of screen
                 player_pos.x = map_x + tile_size * (map_width // 2)
-                player_pos.y = map_y + tile_size * (map_height // 2)
+                player_pos.y = map_y + tile_size * (map_height-7)
+                print(current_map)
                 break
     # Draw
     screen.fill((0, 0, 0))
@@ -792,19 +684,9 @@ while running:
     #Main Hud
     if current_map == "main":
         font = pygame.font.SysFont(None, 30)
-        y_offset = 10
-        for ore, count in ore_counts.items():
-            text = font.render(f"{ore.capitalize()}: {count}", True, (255, 255, 255))
-            screen.blit(text, (10, y_offset))
-            y_offset += 30
+        wood_text = font.render(f"Wood: {ore_counts['wood']}", True, (255, 255, 255))
+        screen.blit(wood_text, (10, 10))  # Adjust x, y as needed
 
-    current_time = pygame.time.get_ticks()
-    if craft_message and current_time - craft_message_timer <= CRAFT_MESSAGE_DURATION:
-        font = pygame.font.SysFont(None, 40)
-        text = font.render(craft_message, True, (255, 255, 0))  # Yellow text
-        screen.blit(text, (screen_width // 2 - text.get_width() // 2, 50))  # Center top
-    else:
-        craft_message = ""
     if keys[pygame.K_q]:
         break
     # Draw mining overlay if active
@@ -830,20 +712,8 @@ while running:
         if mined_ore_type in ore_counts:
             ore_counts[mined_ore_type] += 1
 
-            # Check for instant Portal Gun crafting
-        if not has_portal_gun and \
-        ore_counts["diamond"] >= 2 and \
-        ore_counts["iron"] >= 1 and \
-        ore_counts["gold"] >= 1:
-
-            has_portal_gun = True
-            ore_counts["diamond"] -= 2
-            ore_counts["iron"] -= 1
-            ore_counts["gold"] -= 1
-            portal_gun_message = "You crafted the Portal Gun!"
-            portal_gun_message_timer = pygame.time.get_ticks()
-            tile_layout[ty][tx] = "empty"
-            visibility[ty][tx] = True
+        tile_layout[ty][tx] = "empty"
+        visibility[ty][tx] = True
 
         # Auto-reveal adjacent ore
         for dx_, dy_ in [(-1,0),(1,0),(0,-1),(0,1)]:
@@ -869,15 +739,6 @@ while running:
             text = font.render(f"{ore.capitalize()}: {count}", True, (255, 255, 255))
             screen.blit(text, (10, y_offset))
             y_offset += 30
-        if has_portal_gun and portal_gun_message:
-            time_since = pygame.time.get_ticks() - portal_gun_timer
-            if time_since < 3000:  # show message for 3 seconds
-                font = pygame.font.SysFont(None, 36)
-                text = font.render(portal_gun_message, True, (0, 255, 255))
-                screen.blit(text, (screen_width // 2 - text.get_width() // 2, 50))
-            else:
-                portal_gun_message = ""  # clear message after timeout
-
     
 
     pygame.display.flip()
