@@ -223,6 +223,9 @@ maps = {
 caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
 add_object(maps["main"]["objects"], 10, 0, caveentrance_image)
 
+gate_image = pygame.image.load("Sprites\Tiles\Dirt Path\dirtpath-4.png").convert_alpha()
+add_object(maps["main"]["objects"], 19, 5, gate_image)
+
 current_map = "main"
 tile_layout = maps[current_map]["layout"]
 objects = maps[current_map]["objects"]
@@ -282,6 +285,10 @@ def panic_escape(player_rect, player_pos, step=5):
 # Cave entrance in main
 caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
 add_object(maps["main"]["objects"], 10, 0, caveentrance_image)
+
+# Gate in main
+gate_image = pygame.image.load("Sprites\Tiles\Dirt Path\dirtpath-4.png").convert_alpha()
+add_object(maps["main"]["objects"], 19, 5, gate_image)
 
 
 # first is there so that when you click main menu in
@@ -376,6 +383,13 @@ while running:
 
     player_rect.y = player_pos.y - half_height
 
+    if (
+        player_pos.y - half_height < 0 or
+        player_pos.y + half_height > screen_height or
+        will_collide(player_rect)
+    ):
+        player_pos.y = old_y
+
 
     # Animate
     if moved:
@@ -429,6 +443,22 @@ while running:
     if current_map == "main":
         for obj in objects:
             if obj["image"] == caveentrance_image and obj["rect"].colliderect(player_rect):
+
+                current_map = "cave"
+                tile_layout = maps["cave"]["layout"]
+                objects = maps["cave"]["objects"]
+                tile_img = maps["cave"]["tile"]
+                visibility = maps["cave"].get("visibility", [[True] * map_width for _ in range(map_height)])
+
+                # Set player spawn to center of cave
+                player_pos.x = map_x + tile_size * (map_width // 2)
+                player_pos.y = map_y + tile_size * (map_height // 2)
+                break
+
+    # Check for Gate teleport
+    if current_map == "main":
+        for obj in objects:
+            if obj["image"] == gate_image and obj["rect"].colliderect(player_rect):
 
                 current_map = "cave"
                 tile_layout = maps["cave"]["layout"]
