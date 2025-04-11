@@ -49,9 +49,10 @@ mining_timer = 0
 mining_index = 0
 
 
+can_craft = True
+
 mining_durations = {
     "stone": 500,
-    "coal": 600,
     "iron": 800,
     "gold": 1000,
     "diamond": 1500,
@@ -61,8 +62,10 @@ ore_counts = {
     "diamond": 0,
     "iron": 0,
     "gold": 0,
-    "coal": 0
+    "stone": 0,
+    "wood": 0
 }
+
 # Track mined overlay state
 persistent_overlays = {}  # {(tx, ty): overlay_image}
 # Later:
@@ -128,6 +131,7 @@ tile_images = {
     "dirt": pygame.transform.scale(pygame.image.load("Sprites/MineCraft/dirtblock.png").convert_alpha(), (tile_size, tile_size)),
 }
 
+
 # Path-laying function
 def lay_path(layout, start_x, start_y, direction, length, thickness=1, tile_type="dirt"):
     half_thick = thickness // 2
@@ -160,6 +164,7 @@ def add_object(obj_list, tile_x, tile_y, image):
         "rect": rect
     }
     obj_list.append(obj)
+    
 
 def draw_objects(screen, objects, tile_size, map_x, map_y):
     for obj in objects:
@@ -183,7 +188,7 @@ def generate_mining_map():
     from random import randint, shuffle
 
     # List of ore types with a minimum of 3 each
-    required_ores = ["diamond"] * 3 + ["iron"] * 3 + ["gold"] * 3 + ["coal"] * 3
+    required_ores = ["diamond"] * 3 + ["iron"] * 3 + ["gold"] * 3
     shuffle(required_ores)  # Randomize placement order
 
     # Find all stone positions
@@ -199,26 +204,46 @@ def generate_mining_map():
     # Then fill in more ores randomly (~20% chance)
     for x, y in stone_positions:
         if randint(1, 10) <= 2:
-            ore_type = randint(1, 4)
+            ore_type = randint(1, 3)
             if ore_type == 1:
                 layout[y][x] = "diamond"
             elif ore_type == 2:
                 layout[y][x] = "iron"
             elif ore_type == 3:
                 layout[y][x] = "gold"
-            elif ore_type == 4:
-                layout[y][x] = "coal"
+ 
 
     return layout, visibility
+#Weirdly needed to be on its own
+tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
+crafting_table_image = pygame.image.load("Sprites/MineCraft/craftingTable1.png").convert_alpha()
+
 # Map creation
 def create_main_room():
+
+    
     layout = [["grass" for _ in range(map_width)] for _ in range(map_height)]
     lay_path(layout, 5, 5, "horizontal", 10, tile_type="dirtpath")
     lay_path(layout, 10, 2, "vertical", 6, tile_type="dirtpath")
     
     objects = []
-    tree_image = pygame.image.load("Sprites/Objects/Trees and Shrubs/tree-1.png").convert_alpha()
+    from random import randint
+
+    # Place 10 trees randomly on grass tiles
+    tree_count = 10
+    for _ in range(tree_count):
+        placed = False
+        while not placed:
+            tx = randint(0, map_width - 1)
+            ty = randint(0, map_height - 1)
+            if layout[ty][tx] == "grass":
+                add_object(objects, tx, ty, tree_image)
+                placed = True
+   
     add_object(objects, 4, 2, tree_image)
+
+  
+    add_object(objects, 8, 5, crafting_table_image)
 
     return layout, objects
 
@@ -315,6 +340,14 @@ player_pos = pygame.Vector2(screen_width // 2, screen_height // 2)
 facing = "down"
 frame_index, frame_timer = 0, 0
 speed = 5
+player_tool_level = 1  # 1: Wood, 2: Stone, 3: Iron, 4: Diamond
+
+ore_hardness = {
+    "iron": 2,
+    "gold": 2,
+    "diamond": 3
+}
+
 
 def will_collide(new_rect):
     # Object collisions
@@ -323,18 +356,26 @@ def will_collide(new_rect):
             return True
 
     # Tile collisions (e.g., stone)
-    player_tile_x = int((new_rect.centerx - map_x) // tile_size)
-    player_tile_y = int((new_rect.centery - map_y) // tile_size)
+    player_tile_y = int(player_pos.y // tile_size)
+    player_tile_x = int(player_pos.x // tile_size)
+    # Determine if near crafting table
+    can_craft = False
+    for dy in [-1, 0, 1]:
+        for dx in [-1, 0, 1]:
+            ny = player_tile_y + dy
+            nx = player_tile_x + dx
+            if 0 <= ny < map_height and 0 <= nx < map_width:
+                if tile_layout[ny][nx] == "crafting_table":
+                    can_craft = True
+                    break
+        if can_craft:
+            break
 
-    if (
-        0 <= player_tile_x < map_width and
-        0 <= player_tile_y < map_height
-    ):
-        tile_type = tile_layout[player_tile_y][player_tile_x]
-        if tile_type == "stone":  # Block only stone; ores optional
-            return True
-
-    return False
+    if can_craft and can_craft and ore_counts["wood"] >= 3:
+        player_tool_level += 1
+        ore_counts["wood"] -= 3
+        print(f"Crafted! Tool upgraded to level {player_tool_level}")
+        can_craft = False
 
 def panic_escape(player_rect, player_pos, step=5):
     directions = [
@@ -367,6 +408,7 @@ while first:
                 first = False
                 running = True
 
+
     play_screen.blit(img_scaled, (0, 0))
     play_screen.blit(start_scaled, start_rect.topleft)
     frame += 1
@@ -380,8 +422,10 @@ while first:
 
 # Main loop
 running = True
+can_move = True
 while running:
     mapTime = clock.tick(60)
+    can_move = not mining
     map_switch_timer += mapTime
 
    
@@ -408,44 +452,50 @@ while running:
         scaled_frame.get_height()
     )
 
-    old_x = player_pos.x
-    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-        player_pos.x -= speed
-        facing = "left"
-        moved = True
-    elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-        player_pos.x += speed
-        facing = "right"
-        moved = True
 
+    old_x = player_pos.x
+
+    if can_move:
+        # Horizontal movement
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            player_pos.x -= speed
+            facing = "left"
+            moved = True
+        elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            player_pos.x += speed
+            facing = "right"
+            moved = True
+
+        # Vertical movement
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            player_pos.y -= speed
+            facing = "up"
+            moved = True
+        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            player_pos.y += speed
+            facing = "down"
+            moved = True
+    # Update player_rect
     player_rect.x = player_pos.x - half_width
 
-    if (
-        player_pos.x - half_width < 0 or
-        player_pos.x + half_width > screen_width or
-        will_collide(player_rect)
-    ):
+    # Prevent going out of screen bounds
+    if player_pos.x - half_width < 0 or player_pos.x + half_width > screen_width:
+        player_pos.x = old_x
+        player_rect.x = old_x - half_width
+
+    # Check collisions
+    if will_collide(player_rect):
+        player_pos.x = old_x
+        player_rect.x = old_x - half_width
+        
+        
         player_pos.x = old_x
         player_rect.x = old_x - half_width  # make sure rect matches
         player_moved = False
         player_pos.x -= speed
 
-    if mining:
-            if keys[pygame.K_w] or keys[pygame.K_a] or keys[pygame.K_s] or keys[pygame.K_d] or \
-            keys[pygame.K_UP] or keys[pygame.K_LEFT] or keys[pygame.K_DOWN] or keys[pygame.K_RIGHT]:
-                mining = False
-                mining_target = None
-                mining_timer = 0
-                mining_index = 0
+ 
     old_y = player_pos.y
-    if keys[pygame.K_w] or keys[pygame.K_UP]:
-        player_pos.y -= speed
-        facing = "up"
-        moved = True
-    elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-        player_pos.y += speed
-        facing = "down"
-        moved = True
 
     player_rect.y = player_pos.y - half_height
     if (
@@ -485,8 +535,43 @@ while running:
         frame_index = 0
 
     current_time = pygame.time.get_ticks()
+    if keys[pygame.K_SPACE] and current_map == "main":
+        dx, dy = 0, 0
+        if facing == "up": dy = -1
+        elif facing == "down": dy = 1
+        elif facing == "left": dx = -1
+        elif facing == "right": dx = 1
 
-    if keys[pygame.K_e] and current_time - last_mine_time >= mine_delay and not mining:
+        tx = int((player_pos.x - map_x) // tile_size) + dx
+        ty = int((player_pos.y - map_y) // tile_size) + dy
+
+        if 0 <= tx < map_width and 0 <= ty < map_height:
+          for obj in list(objects):  # use list() to safely remove during iteration
+            if obj["x"] == tx and obj["y"] == ty and obj["image"] == tree_image:
+                objects.remove(obj)
+                ore_counts["wood"] += 1
+                break
+
+    if keys[pygame.K_SPACE] and current_map == "main" and can_craft:
+        for obj in objects:
+            if obj["image"] == crafting_table_image:
+                dx = abs(obj["x"] - int((player_pos.x - map_x) // tile_size))
+                dy = abs(obj["y"] - int((player_pos.y - map_y) // tile_size))
+                if dx <= 1 and dy <= 1:
+                    if ore_counts["wood"] >= 3:
+                        ore_counts["wood"] -= 3
+                        player_tool_level += 1
+                        print(f"Crafted! Tool upgraded to level {player_tool_level}")
+                    else:
+                        print("Not enough wood to upgrade tool.")
+                    can_craft = False
+                    break
+
+    # Reset crafting when SPACE is released
+    if not keys[pygame.K_SPACE]:
+        can_craft = True        
+    if keys[pygame.K_SPACE] and current_time - last_mine_time >= mine_delay and not mining:
+
         last_mine_time = current_time
 
         dx, dy = 0, 0
@@ -499,16 +584,31 @@ while running:
         ty = int((player_pos.y - map_y) // tile_size) + dy
 
         if 0 <= tx < map_width and 0 <= ty < map_height:
-            target_tile = tile_layout[ty][tx]
-            was_ore = target_tile in ("diamond", "iron", "gold", "coal")
+            if current_map == "cave":
+  
+                target_tile = tile_layout[ty][tx]
+                mined_ore_type = target_tile
+                valid_mineables = ("diamond", "iron", "gold", "stone")
+                was_ore = target_tile in valid_mineables
 
-            if current_map == "cave" and target_tile in mining_durations:
-                mining_target = (tx, ty)
-                mining_duration = mining_durations[target_tile]
-                mining_delay = mining_duration // len(mining_overlays)
-                mining_timer = 0
-                mining_index = 0
-                mining = True
+                if current_map == "cave" and target_tile in valid_mineables:
+                    # Check tool level
+                    #global ore_hardness
+
+                    if target_tile in ore_hardness and player_tool_level < ore_hardness[target_tile]:
+                        print(f"Your tool is too weak to mine {target_tile}!")
+                        # Optional: play error sound or show visual feedback
+                        continue
+
+                    mining_target = (tx, ty)
+                    mining_duration = mining_durations[target_tile]
+                    mining_delay = mining_duration // len(mining_overlays)
+                    mining_timer = 0
+                    mining_index = 0
+                    mining = True
+
+                # Store ore type now for accurate ore count update
+                mined_ore_type = target_tile
 
                 # Reveal the tile
                 visibility[ty][tx] = True
@@ -552,6 +652,7 @@ while running:
     screen.blit(scaled_frame, scaled_frame.get_rect(center=player_pos))
     draw_objects(screen, objects, tile_size, map_x, map_y)
 
+    #Cave Hud
     if current_map == "cave":
         font = pygame.font.SysFont(None, 30)
         y_offset = 10
@@ -559,6 +660,11 @@ while running:
             text = font.render(f"{ore.capitalize()}: {count}", True, (255, 255, 255))
             screen.blit(text, (10, y_offset))
             y_offset += 30
+    #Main Hud
+    if current_map == "main":
+        font = pygame.font.SysFont(None, 30)
+        wood_text = font.render(f"Wood: {ore_counts['wood']}", True, (255, 255, 255))
+        screen.blit(wood_text, (10, 10))  # Adjust x, y as needed
 
     if keys[pygame.K_q]:
         break
@@ -578,40 +684,41 @@ while running:
         scaled_overlay = pygame.transform.scale(overlay, (tile_size, tile_size))
         screen.blit(scaled_overlay, (map_x + tx * tile_size, map_y + ty * tile_size))
 
-        # ✅ When mining finishes
-        if mining_timer >= mining_duration:
-            target_tile = tile_layout[ty][tx]
-            was_ore = target_tile in ("diamond", "iron", "gold", "coal")
+    if mining and mining_timer >= mining_duration and mining_target:
+        tx, ty = mining_target
+        target_tile = tile_layout[ty][tx]
+
+        if mined_ore_type in ore_counts:
+            ore_counts[mined_ore_type] += 1
+
+        tile_layout[ty][tx] = "empty"
+        visibility[ty][tx] = True
+
+        # Auto-reveal adjacent ore
+        for dx_, dy_ in [(-1,0),(1,0),(0,-1),(0,1)]:
+            nx, ny = tx + dx_, ty + dy_
+            if 0 <= nx < map_width and 0 <= ny < map_height:
+                if tile_layout[ny][nx] in ore_hardness:
+                    visibility[ny][nx] = True
+
+        # Reset mining state
+        mining = False
+        mining_target = None
+        mining_timer = 0
+        mining_index = 0
+
+        # Instant redraw
+        screen.fill((0, 0, 0))
+        draw_map()
+        draw_objects(screen, objects, tile_size, map_x, map_y)
+        screen.blit(scaled_frame, scaled_frame.get_rect(center=player_pos))
+        font = pygame.font.SysFont(None, 30)
+        y_offset = 10
+        for ore, count in ore_counts.items():
+            text = font.render(f"{ore.capitalize()}: {count}", True, (255, 255, 255))
+            screen.blit(text, (10, y_offset))
+            y_offset += 30
     
-            if was_ore and target_tile in ore_counts:
-                ore_counts[target_tile] += 1
 
-            tile_layout[ty][tx] = "empty"
-            
-           
-            # Reveal and mine the tile
-            visibility[ty][tx] = True
-      
-
-            
-     
-
-
-
-            if was_ore:
-                for dy_ in [-1, 0, 1]:
-                    for dx_ in [-1, 0, 1]:
-                        if abs(dx_) + abs(dy_) != 1:
-                            continue
-                        nx, ny = tx + dx_, ty + dy_
-                        if (
-                            0 <= nx < map_width and
-                            0 <= ny < map_height and
-                            tile_layout[ny][nx] in ("diamond", "iron", "gold", "coal")
-                        ):
-                            visibility[ny][nx] = True
-
-            # 🧹 Reset mining state
-        
-
-        pygame.display.flip()
+    pygame.display.flip()
+    
