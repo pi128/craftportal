@@ -41,6 +41,8 @@ map_height = 11
 frame_delay = 150  # milli
 map_switch_delay = 500 
 map_switch_timer = 0
+mine_delay = 300 
+last_mine_time = 0
 
 # Precalculate map position
 map_x = (screen_width - tile_size * map_width) // 2
@@ -384,7 +386,10 @@ while running:
     else:
         frame_index = 0
 
-    if keys[pygame.K_e]:
+    current_time = pygame.time.get_ticks()
+
+    if keys[pygame.K_e] and current_time - last_mine_time >= mine_delay:
+        last_mine_time = current_time  # update the time
 
         dx, dy = 0, 0
         if facing == "up": dy = -1
@@ -400,7 +405,7 @@ while running:
                 target_tile = tile_layout[ty][tx]
                 if target_tile in ("stone", "diamond", "iron", "gold", "coal"):
                     was_ore = target_tile in ("diamond", "iron", "gold", "coal")
-                    
+
                     # Reveal the tile
                     visibility[ty][tx] = True
                     tile_layout[ty][tx] = "empty"
@@ -418,7 +423,7 @@ while running:
                                     tile_layout[ny][nx] in ("diamond", "iron", "gold", "coal")
                                 ):
                                     visibility[ny][nx] = True
-
+                                    
 
     # Check for cave entrance teleport
     if current_map == "main":
