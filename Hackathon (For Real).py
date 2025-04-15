@@ -892,12 +892,12 @@ while running:
                 screen.blit(text, (screen_width // 2 - text.get_width() // 2, 50))
             else:
                 portal_gun_message = ""  # clear message after timeout
-        if pause:
-            draw_pause()
-            screen.blit(game_pause_scaled, game_pause_rect)
-            screen.blit(pause_x_scaled, pause_x_rect)
-            screen.blit(pause_quit_scaled, pause_quit_rect)
-            screen.blit(main_menu_scaled, main_menu_rect)
+    if pause:
+        draw_pause()
+        screen.blit(game_pause_scaled, game_pause_rect)
+        screen.blit(pause_x_scaled, pause_x_rect)
+        screen.blit(pause_quit_scaled, pause_quit_rect)
+        screen.blit(main_menu_scaled, main_menu_rect)
                 
     
 
