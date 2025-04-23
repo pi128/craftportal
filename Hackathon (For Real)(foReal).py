@@ -111,9 +111,9 @@ mining_durations = {
     "diamond": 1500
 }
 
-# ────────────────────────────────────────────────────────────────────────────
-#  MAP HELPERS
-# ────────────────────────────────────────────────────────────────────────────
+
+#  Map Helpers
+
 def lay_path(layout, x, y, dir_, length, thickness=1, kind="dirtpath"):
     half = thickness//2
     for i in range(length):
@@ -173,9 +173,9 @@ def create_main_room():
     add_object(objs,8,5,crafting_img)
     return layout, objs
 
-# ────────────────────────────────────────────────────────────────────────────
-#  BUILD MAPS & INITIAL STATE
-# ────────────────────────────────────────────────────────────────────────────
+
+#  Build Maps & Init State
+
 map_x = (SCREEN_W - TILE*MAP_W)//2
 map_y = (SCREEN_H - TILE*MAP_H)//2
 
@@ -209,9 +209,9 @@ tile_img     = maps[current_map]["tile"]
 visibility   = maps[current_map].get("visibility", [[True]*MAP_W for _ in range(MAP_H)])
 dug = maps[current_map].get("dug")  
 
-# ────────────────────────────────────────────────────────────────────────────
-#  PLAYER STATE
-# ────────────────────────────────────────────────────────────────────────────
+
+#  Player State
+
 player_pos    = pygame.Vector2(map_x+TILE*(MAP_W//2),
                                map_y+TILE*(MAP_H//2))
 facing        = "down"
@@ -219,7 +219,7 @@ frame_idx     = 0
 frame_timer   = 0
 FRAME_DELAY   = 150
 speed         = 5
-player_tool   = 0   # 0=no pick,1=wood,2=stone,3=iron,4=gold,5=diamond
+player_tool   = 0   # 0=no pick,1=wood,2=stone,3=iron,3=gold,4=diamond
 
 mining        = False
 mining_target = None
@@ -238,9 +238,9 @@ portal_msg    = ""
 portal_msg_time=0
 has_portal_gun=False
 
-# ────────────────────────────────────────────────────────────────────────────
-#  COLLISION HELPERS
-# ────────────────────────────────────────────────────────────────────────────
+
+#  Collision Helpers i hated this 
+
 def player_rect():
     col_w = TILE*0.8
     col_h = TILE*0.8
@@ -281,9 +281,9 @@ def reveal_around_player(radius=1):
             if 0 <= nx < MAP_W and 0 <= ny < MAP_H:
                 visibility[ny][nx] = True
 
-# ────────────────────────────────────────────────────────────────────────────
-#  DRAW MAP WITH FOG-OF-WAR
-# ────────────────────────────────────────────────────────────────────────────
+
+#  Draw Map with FOG-OF-WAR coolest part of this game
+
 def draw_map():
     for y in range(MAP_H):
         for x in range(MAP_W):
@@ -294,15 +294,15 @@ def draw_map():
 
             if current_map == "cave":
                 if not visibility[y][x]:
-                    # hidden → always look like solid stone
+                    # hidden: always look like solid stone
                     screen.blit(tile_images["stone"], (dx, dy))
                     continue
                 elif not dug[y][x]:
-                    # visible but NOT yet dug out → still stone
+                    # visible but NOT yet dug out: still stone
                     screen.blit(tile_images["stone"], (dx, dy))
                     continue
 
-            # 2) either we’re on the overworld OR the cell is dug out
+            # 2) either we’re on the overworld OR the cell is dug out pretty dumb but yeah
             tile = tile_layout[y][x]
             screen.blit(tile_images.get(tile, tile_img), (dx, dy))
 
@@ -310,9 +310,9 @@ def draw_map():
             if (x, y) in persistent_overlays:
                 screen.blit(persistent_overlays[(x, y)], (dx, dy))
 
-# ────────────────────────────────────────────────────────────────────────────
-#  START MENU
-# ────────────────────────────────────────────────────────────────────────────
+
+# Start Menu 
+#TODO should fix mr steve
 start_rect    = start_btn.get_rect(center=(SCREEN_W//2,SCREEN_H//2))
 settings_rect = settings_btn.get_rect(center=(SCREEN_W//2,SCREEN_H//2+105))
 quit_rect     = quit_btn.get_rect(center=(SCREEN_W//2,SCREEN_H//2+210))
@@ -341,9 +341,9 @@ while first:
     pygame.display.flip()
     clock.tick(FPS)
 
-# ────────────────────────────────────────────────────────────────────────────
-#  MAIN GAME LOOP
-# ────────────────────────────────────────────────────────────────────────────
+
+#  Main Game Loop
+
 persistent_overlays = {}
 map_switch_delay, map_switch_timer = 500, 0
 
@@ -370,12 +370,12 @@ while running:
                 pygame.event.post(pygame.event.Event(QUIT))
 
     if not pause:
-        # ─── INPUT & MOVEMENT ──────────────────────────────────────────────
+        # Input  Movement
         
         keys = pygame.key.get_pressed()
         dx = dy = 0
 
-        if not mining:                             # ← add this line
+        if not mining:                         
             if keys[K_LEFT]:  dx, facing = -speed, "left"
             if keys[K_RIGHT]: dx, facing =  speed, "right"
             if keys[K_UP]:    dy, facing = -speed, "up"
@@ -399,6 +399,7 @@ while running:
             dug = maps[current_map].get("dug")      
 
         now = pygame.time.get_ticks()
+
         # Space Button logic
         if keys[K_SPACE] and now - last_mine_time >= 300:
             last_mine_time = now
@@ -507,6 +508,7 @@ while running:
                 break
     if current_map == "cave" and not pause:
         reveal_around_player(radius=1)      # 1-tile halo is enough
+        
     #Draw and display everything
     screen.fill((0,0,0))
     draw_map()
