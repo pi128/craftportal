@@ -200,17 +200,26 @@ def lay_path(layout, start_x, start_y, direction, length, thickness=1, tile_type
 objects = []
 
 def add_object(obj_list, tile_x, tile_y, image):
-    rect = pygame.Rect(
+    visual_rect = pygame.Rect(
         map_x + tile_x * tile_size,
         map_y + tile_y * tile_size,
         tile_size,
         tile_size
     )
+    
+    # Only collide with the "trunk" (center bottom quarter of tree tile)
+    collider_rect = pygame.Rect(
+        visual_rect.x + tile_size // 4 ,
+        visual_rect.y + tile_size // 2,
+        tile_size // 2,
+        tile_size // 2
+    )
+
     obj = {
         "x": tile_x,
         "y": tile_y,
         "image": image,
-        "rect": rect
+        "rect": collider_rect
     }
     obj_list.append(obj)
     
@@ -446,17 +455,6 @@ def will_collide(new_rect):
     global has_portal_gun
 
 
-def panic_escape(player_rect, player_pos, step=5):
-    directions = [
-        (0, -step), (0, step), (-step, 0), (step, 0),
-        (-step, -step), (-step, step), (step, -step), (step, step)
-    ]
-    for dx, dy in directions:
-        test_rect = player_rect.move(dx, dy)
-        if not will_collide(test_rect):
-            player_pos.x += dx
-            player_pos.y += dy
-            break
 
 # Cave entrance in main
 caveentrance_image = pygame.image.load("Sprites/Tiles/Cave/CaveEntrance.png").convert_alpha()
@@ -542,53 +540,65 @@ while running:
 
     keys = pygame.key.get_pressed()
     moved = False
+    collision_width = tile_size * 0.3
+    collision_height = tile_size * 0.25
 
-    player_rect = pygame.Rect(
-        player_pos.x - half_width,
-        player_pos.y - half_height,
-        scaled_frame.get_width(),
-        scaled_frame.get_height()
-    )
+    def get_player_rect():
+        collision_width = tile_size * 0.3
+        collision_height = tile_size * 0.25
+        return pygame.Rect(
+            player_pos.x + (tile_size - collision_width) // 2 - 4,  # tweak -4 if needed
+            player_pos.y + tile_size - collision_height,
+            collision_width,
+            collision_height
+        )
+    # Save previous position
+    old_x, old_y = player_pos.x, player_pos.y
 
+    dx, dy = 0, 0
+    keys = pygame.key.get_pressed()
 
-    old_x = player_pos.x
+    # Input
+    if keys[pygame.K_LEFT]:
+        dx = -speed
+        facing = "left"
+    elif keys[pygame.K_RIGHT]:
+        dx = speed
+        facing = "right"
 
-    if can_move:
-        # Horizontal movement
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            player_pos.x -= speed
-            facing = "left"
-            moved = True
-        elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            player_pos.x += speed
-            facing = "right"
-            moved = True
+    if keys[pygame.K_UP]:
+        dy = -speed
+        facing = "up"
+    elif keys[pygame.K_DOWN]:
+        dy = speed
+        facing = "down"
 
-        # Vertical movement
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            player_pos.y -= speed
-            facing = "up"
-            moved = True
-        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            player_pos.y += speed
-            facing = "down"
-            moved = True
-    # Update player_rect
-    player_rect.x = player_pos.x - half_width
+    # Try horizontal movement
+    if dx != 0:
+        test_rect = get_player_rect().move(dx, 0)
+        if not will_collide(test_rect):
+            player_pos.x += dx
 
-    # Prevent going out of screen bounds
+    # Try vertical movement
+    if dy != 0:
+        test_rect = get_player_rect().move(0, dy)
+        if not will_collide(test_rect):
+            player_pos.y += dy
+
+    # Recalculate collision box
+    player_rect = get_player_rect()
+
+    # Prevent leaving screen bounds
     if player_pos.x - half_width < 0 or player_pos.x + half_width > screen_width:
         player_pos.x = old_x
-        player_rect.x = old_x - half_width
+        player_rect = get_player_rect()
 
-    # Check collisions
-    if will_collide(player_rect):
-        player_pos.x = old_x
-        player_rect.x = old_x - half_width
-        
-        
-        player_pos.x = old_x
-        player_rect.x = old_x - half_width  # make sure rect matches
+    if player_pos.y - half_height < 0 or player_pos.y + half_height > screen_height:
+        player_pos.y = old_y
+        player_rect = get_player_rect()
+
+     
+        player_rect.update(player_pos.x, player_pos.y, tile_size, tile_size)
         player_moved = False
         player_pos.x -= speed
 
@@ -609,8 +619,7 @@ while running:
         mining_target = None
         mining_timer = 0
         mining_index = 0
-    if keys[pygame.K_p]:
-        panic_escape(player_rect, player_pos)
+  
 
     if keys[pygame.K_m] and map_switch_timer >= map_switch_delay:
         current_map = "cave" if current_map == "main" else "main"
@@ -621,6 +630,7 @@ while running:
         map_switch_timer = 0
 
     player_rect.y = player_pos.y - half_height
+    
 
     if (
         player_pos.y - half_height < 0 or
@@ -892,12 +902,16 @@ while running:
                 screen.blit(text, (screen_width // 2 - text.get_width() // 2, 50))
             else:
                 portal_gun_message = ""  # clear message after timeout
+    pygame.draw.rect(screen, (255, 0, 0), player_rect, 2)
+    pygame.draw.circle(screen, (255, 0, 0), (int(player_pos.x), int(player_pos.y + tile_size // 2)), 5)
+
     if pause:
         draw_pause()
         screen.blit(game_pause_scaled, game_pause_rect)
         screen.blit(pause_x_scaled, pause_x_rect)
         screen.blit(pause_quit_scaled, pause_quit_rect)
         screen.blit(main_menu_scaled, main_menu_rect)
+        
                 
     
 
