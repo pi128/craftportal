@@ -8,19 +8,19 @@ pygame.init()
 try:
     pygame.mixer.init()
 except pygame.error:
-    print("⚠  Audio device not available; continuing without sound.")
+    print("Audio device not available; continuing without sound.")
 
-# ────────────────────────────────────────────────────────────────────────────
-#  GLOBAL CONSTANTS
-# ────────────────────────────────────────────────────────────────────────────
+
+#  CONSTANTS
+
 SCREEN_W, SCREEN_H = 1280, 720
 TILE              = 64
 MAP_W, MAP_H      = 20, 11
 FPS               = 60
 
-# ────────────────────────────────────────────────────────────────────────────
+
 #  PYGAME SETUP
-# ────────────────────────────────────────────────────────────────────────────
+
 screen  = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 clock   = pygame.time.Clock()
 surface = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
@@ -31,9 +31,9 @@ def safe_load(path, scale=None):
         img = pygame.transform.scale(img, scale)
     return img
 
-# ────────────────────────────────────────────────────────────────────────────
+
 #  SPRITES & TILES
-# ────────────────────────────────────────────────────────────────────────────
+
 # UI buttons & menus
 pause_bg     = safe_load('Sprites/MineCraft/game_paused.png',   (500,200))
 pause_x_btn  = safe_load('Sprites/MineCraft/x_out.png',         (128, 90))
@@ -55,7 +55,7 @@ base_tiles = {
     "cave":     safe_load("Sprites/Tiles/Cave/CaveTile1.png",      (TILE,TILE)),
 }
 
-# Ore & misc tiles
+# Ore & other tile
 ore_tiles = {
     "stone":   safe_load("Sprites/MineCraft/stoneblock.png",   (TILE,TILE)),
     "iron":    safe_load("Sprites/MineCraft/ironblock.png",    (TILE,TILE)),
@@ -72,7 +72,7 @@ crafting_img      = safe_load("Sprites/MineCraft/craftingTable1.png",       (TIL
 cave_entrance_img = safe_load("Sprites/Tiles/Cave/CaveEntrance.png",        (TILE,TILE))
 gate_img          = safe_load("Sprites/Tiles/Dirt Path/dirtpath-4.png",     (TILE,TILE))
 
-# Character animations
+# Character walking animation locked the size
 PLAYER_SIZE = TILE
 def load_anim(files):
     return [
@@ -89,19 +89,19 @@ animations = {
     "right": load_anim(["RightFacing.png","RightWalking1.png","RightWalking2.png"])
 }
 
-# Mining crack‐overlays
+# Mining crack animation
 mining_overlays = [safe_load(f"Sprites/MineCraft/MiningNum{i}.png") for i in range(1,11)]
 
-# ────────────────────────────────────────────────────────────────────────────
-#  GAME DATA
-# ────────────────────────────────────────────────────────────────────────────
+
+#  actual GAME DATA
+
 ore_counts = {k:0 for k in ("wood","stone","iron","gold","diamond")}
 
 ore_hardness = {
     "stone":   1,   # wood pick can mine stone
     "iron":    2,   # stone pick
     "gold":    3,   # iron pick
-    "diamond": 4    # gold pick
+    "diamond": 3    # gold pick
 }
 
 mining_durations = {
@@ -388,7 +388,7 @@ while running:
         player_pos.x = max(map_x, min(player_pos.x, map_x+MAP_W*TILE-TILE))
         player_pos.y = max(map_y, min(player_pos.y, map_y+MAP_H*TILE-TILE))
 
-        # ─── SWITCH MAP ───────────────────────────────────────────────────
+        # bummy switch map
         if keys[K_m] and map_switch_timer>=map_switch_delay:
             current_map = "cave" if current_map=="main" else "main"
             tile_layout = maps[current_map]["layout"]
@@ -399,7 +399,7 @@ while running:
             dug = maps[current_map].get("dug")      
 
         now = pygame.time.get_ticks()
-        # ─── INTERACT (SPACE) ─────────────────────────────────────────────
+        # Space Button logic
         if keys[K_SPACE] and now - last_mine_time >= 300:
             last_mine_time = now
             fx=fy=0
@@ -418,13 +418,13 @@ while running:
                 if any(o["image"]==crafting_img and abs(o["x"]-tx)<=1 and abs(o["y"]-ty)<=1 for o in objects):
                     upgrades = [
                         (0,"wood",3), (1,"stone",3),
-                        (2,"iron",3),(3,"gold",3),(4,"diamond",3)
+                        (2,"iron",3),(3,"gold",3),(3,"diamond",3)
                     ]
                     for tier,res,cost in upgrades:
                         if player_tool==tier and ore_counts[res]>=cost:
                             ore_counts[res]-=cost
                             player_tool += 1
-                            craft_msg = f"Crafted {res.title()} Tool!"
+                            craft_msg = f"Crafted a {res.title()} pick!"
                             craft_msg_time = now
                             break
 
@@ -441,7 +441,7 @@ while running:
                     craft_msg = f"Need better tool for {target}"
                     craft_msg_time = now
 
-    # ─── MINING TICK ────────────────────────────────────────────────────
+    # Mineing Tick
     if mining:
         mining_timer += dt
         # advanced crack animation
@@ -452,26 +452,20 @@ while running:
 
         # finished?
         if mining_timer >= mining_duration and mining_target:
-            mx, my = mining_target         # ← now defined
+            mx, my = mining_target        
             kind = tile_layout[my][mx]
 
-            # harvest the ore and carve out floor
+            # harvest the ore and leave the floor
             ore_counts[kind] += 1
             tile_layout[my][mx] = "empty"
             dug[my][mx] = True             # mark as excavated
             persistent_overlays.pop((mx, my), None)   # remove the crack
 
-            # reveal the 8 neighbouring tiles
-            for dy in (-1, 0, 1):
-                for dx in (-1, 0, 1):
-                    ny, nx = my + dy, mx + dx
-                    if 0 <= nx < MAP_W and 0 <= ny < MAP_H:
-                        visibility[ny][nx] = True
 
             mining = False
             mining_target = None
 
-            # ─ auto-craft portal-gun if you now meet the recipe ─
+            # auto-craft portal-gun if you now meet the recipe i dont like this
             if (not has_portal_gun and
                 ore_counts["diamond"] >= 2 and
                 ore_counts["iron"]    >= 1 and
@@ -483,7 +477,7 @@ while running:
                 portal_msg      = "You crafted the Portal Gun!"
                 portal_msg_time = pygame.time.get_ticks()
 
-    # ─── ANIMATE PLAYER ────────────────────────────────────────────────
+    #Animate the player
     moved = dx!=0 or dy!=0
     if moved:
         frame_timer += dt
@@ -495,7 +489,7 @@ while running:
 
 
 
-    # ─── AUTO-TELEPORT ON ENTRANCE/GATE ─────────────────────────────────────
+    # Auto Teleport
     px, py = player_tile()
     if current_map=="main":
         for o in objects:
@@ -513,7 +507,7 @@ while running:
                 break
     if current_map == "cave" and not pause:
         reveal_around_player(radius=1)      # 1-tile halo is enough
-    # ─── DRAW EVERYTHING ───────────────────────────────────────────────────
+    #Draw and display everything
     screen.fill((0,0,0))
     draw_map()
     draw_objects(objects)
