@@ -3,6 +3,7 @@ import pygame
 import sys
 from pygame.locals import *
 from random import randint, shuffle
+import os
 
 pygame.init()
 try:
@@ -24,6 +25,13 @@ FPS               = 60
 screen  = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 clock   = pygame.time.Clock()
 surface = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+
+BASE_DIR  = os.path.dirname(__file__)
+FONT_PATH = os.path.join(BASE_DIR, "fonts", "minecraft-regular.ttf")
+HUD_FONT = pygame.font.Font("Fonts/minecraft-regular.ttf", 28)
+
+
+
 
 def safe_load(path, scale=None):
     img = pygame.image.load(path).convert_alpha()
@@ -133,17 +141,19 @@ def draw_objects(objs):
                     (map_x+o["x"]*TILE, map_y+o["y"]*TILE))
 
 def generate_mining_map():
-    layout = [["stone"]*MAP_W for _ in range(MAP_H)]
-    vis    = [[False]*MAP_W for _ in range(MAP_H)]
-    cx, cy = MAP_W//2, MAP_H//2
+    layout = [["stone"] * MAP_W for _ in range(MAP_H)]
+    vis    = [[False]  * MAP_W for _ in range(MAP_H)]
 
-    # central room
-    for yy in range(cy-1, cy+2):
-        for xx in range(cx-1, cx+2):
+    cx = MAP_W // 2
+    cy = MAP_H - 2           # ↓ new anchor: near the bottom
+
+    # carve 3×3 room (clipped to map bounds)
+    for yy in range(max(0, cy - 1), min(MAP_H, cy + 2)):
+        for xx in range(max(0, cx - 1), min(MAP_W, cx + 2)):
             layout[yy][xx] = "dirtpath"
             vis[yy][xx]    = True
 
-    guaranteed = ["diamond"]*5 + ["iron"]*10 + ["gold"]*8
+    guaranteed = ["diamond"]*3 + ["iron"]*5 + ["gold"]*2
     shuffle(guaranteed)
     spots = [(x,y) for y in range(MAP_H) for x in range(MAP_W) if layout[y][x]=="stone"]
     shuffle(spots)
@@ -153,7 +163,7 @@ def generate_mining_map():
 
     # random extras
     for x,y in spots:
-        if randint(1,10)<=3:
+        if randint(1,10)<=2:
             layout[y][x] = "iron" if randint(1,3)<=2 else "gold"
 
     return layout, vis
@@ -200,6 +210,10 @@ maps = {
     }
 }
 add_object(maps["main"]["objects"],10,0,cave_entrance_img,collidable=False)
+# put the ladder/entrance sprite on the floor of the central chamber
+add_object(maps["cave"]["objects"],
+           MAP_W // 2, MAP_H - 1,  # bottom-centre tile
+           cave_entrance_img, collidable=False)
 add_object(maps["main"]["objects"],19,5,gate_img,collidable=False)
 
 current_map  = "main"
@@ -388,15 +402,6 @@ while running:
         player_pos.x = max(map_x, min(player_pos.x, map_x+MAP_W*TILE-TILE))
         player_pos.y = max(map_y, min(player_pos.y, map_y+MAP_H*TILE-TILE))
 
-        # bummy switch map
-        if keys[K_m] and map_switch_timer>=map_switch_delay:
-            current_map = "cave" if current_map=="main" else "main"
-            tile_layout = maps[current_map]["layout"]
-            objects     = maps[current_map]["objects"]
-            tile_img    = maps[current_map]["tile"]
-            visibility  = maps[current_map].get("visibility", [[True]*MAP_W for _ in range(MAP_H)])
-            map_switch_timer = 0
-            dug = maps[current_map].get("dug")      
 
         now = pygame.time.get_ticks()
 
@@ -500,15 +505,36 @@ while running:
                 objects      = maps["cave"]["objects"]
                 tile_img     = maps["cave"]["tile"]
                 visibility   = maps["cave"]["visibility"]
-                player_pos.update(map_x+TILE*(MAP_W//2),
-                                  map_y+TILE*(MAP_H//2))
+                player_pos.update(
+                    map_x + TILE * (MAP_W // 2),
+                    map_y + TILE * (MAP_H - 2)      # row 9 when MAP_H = 11
+                    )
                 if pygame.mixer.get_init():
                     pygame.mixer.music.load('Sprites/MineCraft/cave_sound.mp3')
                     pygame.mixer.music.play()
                 break
+
     if current_map == "cave" and not pause:
-        reveal_around_player(radius=1)      # 1-tile halo is enough
-        
+     
+        for o in objects:
+            if (o["x"], o["y"]) == (px, py) and o["image"] == cave_entrance_img:
+                current_map  = "main"
+                tile_layout  = maps["main"]["layout"]
+                objects      = maps["main"]["objects"]
+                tile_img     = maps["main"]["tile"]
+                visibility   = [[True] * MAP_W for _ in range(MAP_H)]
+                dug          = maps["main"]["dug"]
+
+                # spawn just below surface hole (10, 1)
+                player_pos.update(map_x + TILE * 10,
+                                map_y + TILE * 1)
+
+                if pygame.mixer.get_init():
+                    pygame.mixer.music.stop()
+                break
+
+        # 2) cave fog halo
+        reveal_around_player(radius=1)
     #Draw and display everything
     screen.fill((0,0,0))
     draw_map()
@@ -516,18 +542,32 @@ while running:
     screen.blit(animations[facing][frame_idx], animations[facing][frame_idx].get_rect(center=player_pos))
 
     # HUD
-    font = pygame.font.SysFont(None,30)
+
+    # ─── HUD (Minecraft font + per-resource colours) ──────────────────
     y = 10
-    for k,c in ore_counts.items():
-        txt = font.render(f"{k.title()}: {c}", True, (255,255,255))
-        screen.blit(txt, (10,y)); y+=30
+    for resource, count in ore_counts.items():
+        colour = {
+            "wood":    (205, 133,  63),   # light brown
+            "stone":   (200, 200, 200),   # grey
+            "iron":    (216, 174, 140),   # pale orange
+            "gold":    (255, 215,   0),   # gold
+            "diamond": ( 92, 255, 255)    # cyan
+        }[resource]
+
+        # drop-shadow (optional, looks like MC text)
+        shadow = HUD_FONT.render(f"{resource.title()}: {count}", True, (0, 0, 0))
+        screen.blit(shadow, (12, y + 2))
+
+        text   = HUD_FONT.render(f"{resource.title()}: {count}", True, colour)
+        screen.blit(text, (10, y))
+        y += 28          # move to next line
 
     now = pygame.time.get_ticks()
     if craft_msg and now-craft_msg_time<CRAFT_DURATION:
-        t = font.render(craft_msg, True, (255,255,0))
+        t = HUD_FONT.render(craft_msg, True, (255,255,0))
         screen.blit(t, (SCREEN_W//2-t.get_width()//2,50))
     if portal_msg and now-portal_msg_time<3000:
-        t = font.render(portal_msg, True, (0,255,255))
+        t = HUD_FONT.render(portal_msg, True, (0,255,255))
         screen.blit(t, (SCREEN_W//2-t.get_width()//2,80))
 
     # mining overlay
