@@ -183,6 +183,17 @@ def create_main_room():
     add_object(objs,8,5,crafting_img)
     return layout, objs
 
+def draw_bridge_room():
+    bridge_y = 5  # Vertical position of the bridge
+    gap_x = 7     # X position where the bridge is broken
+
+    for x in range(5, 10):
+        if x != gap_x:
+            screen.blit(bridge_tile, (x * TILE, bridge_y * TILE))  # Draw bridge blocks except at the gap
+
+    # Cake on the other side of the gap
+    cake_x = 9
+    screen.blit(cake_img, (cake_x * TILE, bridge_y * TILE))
 
 #  Build Maps & Init State
 
