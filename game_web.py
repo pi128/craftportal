@@ -8,9 +8,13 @@ import asyncio
 # Web-specific initialization
 pygame.init()
 
-# Detect web/pygbag runtime and avoid initializing audio
-IS_WEB = (sys.platform == "emscripten") or ("PYGBAG" in os.environ)
-if not IS_WEB:
+# Detect web/pygbag runtime and completely disable audio for web builds
+IS_WEB = (sys.platform == "emscripten") or ("PYGBAG" in os.environ) or ("pygbag" in sys.modules)
+if IS_WEB:
+    # Completely disable audio for web builds to avoid MP3/format issues
+    pygame.mixer.quit()
+    print("Audio disabled for web build")
+else:
     try:
         pygame.mixer.init()
     except pygame.error:
@@ -509,12 +513,8 @@ async def main():
                         map_x + TILE * (MAP_W // 2),
                         map_y + TILE * (MAP_H - 2)
                     )
-                    if (not IS_WEB) and pygame.mixer.get_init():
-                        try:
-                            pygame.mixer.music.load('Sprites/MineCraft/cave_sound.mp3')
-                            pygame.mixer.music.play()
-                        except Exception:
-                            pass
+                    # Audio completely disabled for web builds
+                    pass
                     break
 
         if current_map == "cave" and not pause:
@@ -530,11 +530,8 @@ async def main():
                     player_pos.update(map_x + TILE * 10,
                                     map_y + TILE * 1)
 
-                    if (not IS_WEB) and pygame.mixer.get_init():
-                        try:
-                            pygame.mixer.music.stop()
-                        except Exception:
-                            pass
+                    # Audio completely disabled for web builds
+                    pass
                     break
 
             reveal_around_player(radius=1)

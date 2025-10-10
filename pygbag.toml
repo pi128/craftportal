@@ -1,0 +1,19 @@
+[pygbag]
+# Configuration for pygbag web builds
+
+# Exclude audio files that cause web build issues
+exclude = [
+    "*.mp3",
+    "*.wav", 
+    "*.ogg",
+    "**/audio/**",
+    "**/sounds/**"
+]
+
+# Web-specific settings
+title = "CraftPortal"
+width = 1280
+height = 720
+
+# Disable audio entirely for web builds
+audio = false
